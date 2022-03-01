@@ -20,11 +20,11 @@ endif
 TESTFLAGS = $(filter-out -DNDEBUG,$(FLAGS))
 
 BINDIR = bin
-TARGETS = $(BINDIR)/run $(BINDIR)/tests
+TARGETS = $(BINDIR)/experiment $(BINDIR)/tests
 
 all: $(TARGETS)
 
-$(BINDIR)/run: main.cc bitvector.h sparsearray.h
+$(BINDIR)/experiment: experiment.cc bitvector.h sparsearray.h
 	$(CC) $(FLAGS) -o $@ $<
 
 $(BINDIR)/tests: tests.cc bitvector.h sparsearray.h
