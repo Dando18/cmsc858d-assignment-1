@@ -63,7 +63,7 @@ class SparseArray {
 
             values_.push_back(elem);
             bitvector_.set(pos, 1);
-            rank_.buildTables();
+            rank_.buildTables(pos);
         }
 
         /**
@@ -134,6 +134,15 @@ class SparseArray {
 
         void load(std::string const& fname) {
 
+        }
+
+        /**
+         * @brief number of bits this data structure uses
+         * 
+         * @return uint64_t number of bits used to store meta data
+         */
+        uint64_t overhead() const noexcept {
+            return 8*sizeof(T)*values_.size() + rank_.overhead() + bitvector_.size();
         }
 
     private:
