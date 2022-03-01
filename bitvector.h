@@ -6,10 +6,10 @@
 
 // stl includes
 #include <bit>
-#include <bitset>
 #include <cmath>
 #include <cstdint>
 #include <exception>
+#include <fstream>
 #include <memory>
 #include <numeric>
 #include <random>
@@ -63,7 +63,7 @@ class BitVector {
          * 
          * @param size number of bits.
          */
-        BitVector(uint32_t size) noexcept : size_(size), data_(std::make_unique<uint8_t[]>(roundDivisionUp(size_, 8))) {}
+        BitVector(uint64_t size) noexcept : size_(size), data_(std::make_unique<uint8_t[]>(roundDivisionUp(size_, 8))) {}
 
         /**
          * @brief Construct a new BitVector object from an input binary string. Assumes the string
@@ -87,8 +87,8 @@ class BitVector {
          * @return true bit `index` is set
          * @return false bit `index` is not set 
          */
-        bool operator[](uint32_t index) const noexcept {
-            const uint32_t arrayIndex = index >> 3;
+        bool operator[](uint64_t index) const noexcept {
+            const uint64_t arrayIndex = index >> 3;
             const uint8_t bitIndex = index & 7;
             return data_[arrayIndex] & (1 << bitIndex);
         }
@@ -102,7 +102,7 @@ class BitVector {
          * @return true bit `index` is set
          * @return false bit `index` is not set
          */
-        bool at(uint32_t index) const {
+        bool at(uint64_t index) const {
             checkIndexBounds(index);
             return operator[](index);
         }
@@ -115,10 +115,10 @@ class BitVector {
          * @param index index to set
          * @param bit set index to 0 or 1
          */
-        void set(uint32_t index, bool bit) {
+        void set(uint64_t index, bool bit) {
             checkIndexBounds(index);
             
-            const uint32_t arrayIndex = index >> 3;
+            const uint64_t arrayIndex = index >> 3;
             const uint8_t bitIndex = index & 7;
             data_[arrayIndex] = (data_[arrayIndex] & ~(1 << bitIndex)) | (bit << bitIndex);
         }
@@ -128,9 +128,9 @@ class BitVector {
          * 
          * @return uint32_t Total number of 1s in bitvector
          */
-        uint32_t popcount() const noexcept {
+        uint64_t popcount() const noexcept {
             return std::transform_reduce(data_.get(), data_.get() + roundDivisionUp(size_, 8), 0, 
-                    std::plus<uint32_t>(), [](auto const& a) -> uint32_t { return std::popcount(a); });
+                    std::plus<uint64_t>(), [](auto const& a) -> uint64_t { return std::popcount(a); });
         }
 
         /**
@@ -141,7 +141,7 @@ class BitVector {
          * @param index index into bitvector
          * @return uint32_t popcount of entire byte index is in
          */
-        uint32_t popcount(uint32_t index) const {
+        uint8_t popcount(uint64_t index) const {
             checkIndexBounds(index);
             return std::popcount(data_[index >> 3]);
         }
@@ -163,7 +163,7 @@ class BitVector {
          * @param len number of bits in total to use
          * @return uint32_t the number of ones in range [start, start+len)
          */
-        uint32_t popcount(uint32_t start, uint32_t len) const {
+        uint32_t popcount(uint64_t start, uint32_t len) const {
             checkIndexBounds(start);
             if constexpr (CHECK_BOUNDS) {
                 if ((len > 32) || (start+len < start)) {
@@ -184,7 +184,7 @@ class BitVector {
          * 
          * @return constexpr uint32_t number of bits.
          */
-        uint32_t size() const noexcept {
+        uint64_t size() const noexcept {
             return size_;
         }
 
@@ -203,7 +203,7 @@ class BitVector {
         }
 
     private:
-        uint32_t size_;
+        uint64_t size_;
         std::unique_ptr<uint8_t[]> data_;
 
         /**
@@ -212,7 +212,7 @@ class BitVector {
          * @throws std::out_of_range If index is out of range.
          * @param index 
          */
-        inline void checkIndexBounds(uint32_t index) const {
+        inline void checkIndexBounds(uint64_t index) const {
             if constexpr (CHECK_BOUNDS) {
                 if (index >= this->size_) {
                     throw std::out_of_range("Invalid index " + std::to_string(index) + " for bitvector with size " + 
@@ -255,6 +255,11 @@ BitVector getRandomBitVector(size_t bits) noexcept {
  * @brief RankSupport class. Implements ability to compute rank of bitvector in constant time.
  */
 class RankSupport {
+    /**
+     * @brief All RankSupport files should start with these 4 bytes.
+     */
+    constexpr static uint32_t FILE_MAGIC = 0xfeedbeef;
+
     public:
         /**
          * @brief Construct a new RankSupport object around `bitvector`. Builds ancillary data tables on construction.
@@ -271,11 +276,27 @@ class RankSupport {
             this->buildTables();
         }
 
-        void buildTables() {
+        /**
+         * @brief Builds superblock and block level tables based on underlying bitvector's data.
+         * @throws std::out_of_range if startingIndex is larger than the bitvector size.
+         * 
+         * @param startingIndex index to start building table from
+         */
+        void buildTables(uint64_t startingIndex = 0) {
+            if constexpr (CHECK_BOUNDS) {
+                if (startingIndex > this->size()) {
+                    throw std::out_of_range("RankSupport::buildTables -- startingIndex " + 
+                            std::to_string(startingIndex) + " is out of range for bitvector.");
+                }
+            }
             auto const& bv = bitvector_.get();
 
-            uint32_t superblockSum = 0, blockSum = 0;
-            for (size_t i = 0; i < bv.size(); i += 1) {
+            /* round startingIndex down to superblock */
+            startingIndex = (startingIndex / superblockSize_) * (superblockSize_);
+
+            uint32_t superblockSum = superblocks_.at(startingIndex / superblockSize_);
+            uint32_t blockSum = blocks_.at(startingIndex / blockSize_);
+            for (size_t i = startingIndex; i < bv.size(); i += 1) {
                 if (i % superblockSize_ == 0) {
                     superblocks_.at(i/superblockSize_) = superblockSum;
                     blockSum = 0;
@@ -340,7 +361,40 @@ class RankSupport {
          * @param fname input filename
          */
         void load(std::string const& fname) {
-            
+            std::ifstream inputStream(fname, std::ios::in | std::ios::binary);
+            if (!inputStream) {
+                throw std::ios_base::failure("Could not open file \"" + fname + "\" to read.");
+            }
+
+            /* meta data */
+            uint32_t magicTmp;
+            inputStream.read(reinterpret_cast<char*>(&magicTmp), sizeof(magicTmp));
+            if (magicTmp != FILE_MAGIC) {
+                inputStream.close();
+                throw std::domain_error("Invalid file magic for file \"" + fname + "\".");
+            }
+
+            uint32_t numSuperblocks, numBlocks, superblockSize, blockSize;
+            inputStream.read(reinterpret_cast<char*>(&superblockSize), sizeof(superblockSize));
+            inputStream.read(reinterpret_cast<char*>(&blockSize), sizeof(blockSize));
+            inputStream.read(reinterpret_cast<char*>(&numSuperblocks), sizeof(numSuperblocks));
+            inputStream.read(reinterpret_cast<char*>(&numBlocks), sizeof(numBlocks));
+
+            this->superblockSize_ = superblockSize;
+            this->superblocks_.resize(numSuperblocks);
+            this->blockSize_ = blockSize;
+            this->blocks_.resize(numBlocks);
+
+            /* read superblocks */
+            const uint32_t totalSuperblockBytes = numSuperblocks * sizeof(decltype(superblocks_)::value_type);
+            inputStream.read(reinterpret_cast<char*>(&superblocks_[0]), totalSuperblockBytes);
+
+            /* read blocks */
+            const uint32_t totalBlockBytes = numBlocks * sizeof(decltype(blocks_)::value_type);
+            inputStream.read(reinterpret_cast<char*>(&blocks_[0]), totalBlockBytes);
+
+            /* cleanup */
+            inputStream.close();
         }
 
         /**
@@ -350,7 +404,31 @@ class RankSupport {
          * @param fname output filename
          */
         void save(std::string const& fname) const {
+            std::ofstream outputStream(fname, std::ios::out | std::ios::binary);
+            if (!outputStream) {
+                throw std::ios_base::failure("Could not open file \"" + fname + "\" to write.");
+            }
 
+            /* write meta data */
+            const uint32_t magicTmp = FILE_MAGIC;
+            const uint32_t numSuperblocks = superblocks_.size();
+            const uint32_t numBlocks = blocks_.size();
+            outputStream.write(reinterpret_cast<char const*>(&FILE_MAGIC), sizeof(magicTmp));
+            outputStream.write(reinterpret_cast<char const*>(&superblockSize_), sizeof(superblockSize_));
+            outputStream.write(reinterpret_cast<char const*>(&blockSize_), sizeof(blockSize_));
+            outputStream.write(reinterpret_cast<char const*>(&numSuperblocks), sizeof(numSuperblocks));
+            outputStream.write(reinterpret_cast<char const*>(&numBlocks), sizeof(numBlocks));
+
+            /* write superblocks */
+            const uint32_t totalSuperblockBytes = numSuperblocks * sizeof(decltype(superblocks_)::value_type);
+            outputStream.write(reinterpret_cast<char const*>(&superblocks_[0]), totalSuperblockBytes);
+
+            /* write blocks */
+            const uint32_t totalBlockBytes = numBlocks * sizeof(decltype(blocks_)::value_type);
+            outputStream.write(reinterpret_cast<char const*>(&blocks_[0]), totalBlockBytes);
+            
+            /* cleanup */
+            outputStream.close();
         }
 
         /**
@@ -358,7 +436,7 @@ class RankSupport {
          * 
          * @return uint32_t size of underlying bitvector
          */
-        uint32_t size() const noexcept {
+        uint64_t size() const noexcept {
             return bitvector_.get().size();
         }
 
@@ -410,7 +488,7 @@ class SelectSupport {
         /**
          * @brief The location of the i-th 1 in the bitvector. 
          * 
-         * @throws std::invalid_argument If i is greater than the total number of ones.
+         * @throws std::invalid_argument If i is greater than the total number of ones or is zero.
          * @throws std::domain_error If no answer is found (something is really wrong here).
          * 
          * @param i number of ones
@@ -424,6 +502,9 @@ class SelectSupport {
                 if (i > rank.totalOnes()) {
                     throw std::invalid_argument("SelectSupport::select1 - Cannot select " + std::to_string(i) + 
                         "-th 1 in bitvector with " + std::to_string(rank.totalOnes()) + " 1s.");
+                }
+                if (i == 0) {
+                    throw std::invalid_argument("SelectSupport::select1 - 0-th 1 is ill-defined. Use 1-indexing.");
                 }
             }
 
