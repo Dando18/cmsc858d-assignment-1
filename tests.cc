@@ -114,7 +114,7 @@ void testRank() {
 
     /* even smaller example */
     const std::string SMALL_STR = "0100010001";
-    BitVector bvSmall(SMALL_STR);
+    const BitVector bvSmall(SMALL_STR);
     RankSupport rankSmall(bvSmall);
     for (size_t i = 0; i < bvSmall.size(); i += 1) {
         const auto val = rankSmall(i);
@@ -131,6 +131,9 @@ void testRank() {
         BitVector bvLong(BIT_STR);
         RankSupport rankLong(bvLong);
 
+        /* save to file */
+        rankLong.save("junk.ranksupport");
+
         for (size_t i = 0; i < bvLong.size(); i += 1) {
             auto val = rankLong(i);
             auto prefix = BIT_STR.substr(0, i+1);
@@ -139,7 +142,21 @@ void testRank() {
             ASSERT_EQUAL(val, expected, "Incorrect rank calculated (length=" + std::to_string(len) + 
                                         ", index=" + std::to_string(i) + ").");
         }
+
+        /* read from file and do again */
+        rankLong.load("junk.ranksupport");
+        for (size_t i = 0; i < bvLong.size(); i += 1) {
+            auto val = rankLong(i);
+            auto prefix = BIT_STR.substr(0, i+1);
+            uint32_t expected = std::count_if(std::begin(prefix), std::end(prefix), [](auto c) { return c == '1'; });
+
+            ASSERT_EQUAL(val, expected, "Incorrect rank calculated (length=" + std::to_string(len) + 
+                                        ", index=" + std::to_string(i) + ") after file load.");
+        }
+
     }
+
+    std::remove("junk.ranksupport");
 
     std::cout << "Success\n";   
 }
@@ -277,7 +294,8 @@ void testSparseArray() {
             uint64_t tmp;
             const auto valueAtIndex = array.getAtIndex(index, tmp);
             ASSERT_EQUAL(valueAtIndex, true, "invalid element at index return value.");
-            ASSERT_EQUAL(tmp, value, "invalid element at index.");
+            ASSERT_EQUAL(tmp, value, "invalid element at index -- " + std::to_string(tmp) + " vs " + 
+                std::to_string(value));
             
             const auto valueAtRank = array.getAtRank(rankCounter, tmp);
             ASSERT_EQUAL(valueAtRank, true, "invalid element at rank return value.");
