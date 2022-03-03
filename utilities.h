@@ -88,8 +88,9 @@ concept Resizable = requires(T a) {
 
 /**
  * @brief Concept resolves if T is trivial data type or container.
- * @note "Serializable" is a bit of a misnomer. If T is a container, then it is not necessarily serializable.
- *       Concepts don't allow recursive definitions. This is still useful for the serialize/deserialize functions.
+ * @note "Serializable" is a bit of a misnomer. If T is a container, then it is not necessarily serializable. It's
+ *       sub-data type may not be serializable, but concepts don't allow recursive definitions. This is still useful 
+ *       for the serialize/deserialize functions though.
  * @see std::is_trivial
  * @see Container 
  */
@@ -134,8 +135,8 @@ void serialize(DataType const& data, std::ofstream &outputStream) {
 template <Serializable DataType>
 void deserialize(DataType &data, std::ifstream &inputStream) {
     if constexpr (Container<DataType>) {
-        auto currentSize = data.size();
-        decltype(currentSize) size {};
+        const auto currentSize = data.size();
+        auto size = decltype(currentSize){};
 
         inputStream.read(reinterpret_cast<char*>(&size), sizeof(size));
         if (currentSize != size) {
