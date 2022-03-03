@@ -24,10 +24,10 @@ TARGETS = $(BINDIR)/experiment $(BINDIR)/tests
 
 all: $(TARGETS)
 
-$(BINDIR)/experiment: experiment.cc bitvector.h sparsearray.h
+$(BINDIR)/experiment: experiment.cc bitvector.h sparsearray.h utilities.h
 	$(CC) $(FLAGS) -o $@ $<
 
-$(BINDIR)/tests: tests.cc bitvector.h sparsearray.h
+$(BINDIR)/tests: tests.cc bitvector.h sparsearray.h utilities.h
 	$(CC) $(TESTFLAGS) -o $@ $< 
 
 clean:

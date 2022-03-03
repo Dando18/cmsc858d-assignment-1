@@ -17,41 +17,13 @@
 #include <string>
 #include <vector>
 
+// local includes
+#include "utilities.h"
+
+/* forward declarations */
+namespace sparse { template<typename T> class SparseArray; }    /* so RankSupport and SelectSupport can friend it */
+
 namespace bitvector {
-
-#if defined(NO_BOUNDS_CHECKING)
-constexpr bool CHECK_BOUNDS = false;
-#else
-constexpr bool CHECK_BOUNDS = true;
-#endif
-
-/**
- * @brief Divides two integers and rounds up.
- * 
- * @param num division numerator
- * @param den division denominator
- * @return constexpr uint32_t ceil(num/den)
- */
-constexpr uint32_t roundDivisionUp(uint32_t num, uint32_t den) noexcept {
-    return num/den + (num%den == 0 ? 0 : 1);
-}
-
-/**
- * @brief Rounds an integer up to the next power of two.
- * modified from Stanford graphics bithacks page: http://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
- * 
- * @param num input integer
- * @return constexpr uint32_t pow(ceil(log_2(num)), 2)
- */
-constexpr uint32_t roundUpToPowerOf2(uint32_t num) noexcept {
-    num -= 1;
-    num |= num >> 1;
-    num |= num >> 2;
-    num |= num >> 4;
-    num |= num >> 8;
-    num |= num >> 16;
-    return num+1;
-}
 
 /**
  * @brief BitVector class for storing bit arrays in a compact format.
@@ -63,7 +35,8 @@ class BitVector {
          * 
          * @param size number of bits.
          */
-        BitVector(uint64_t size) noexcept : size_(size), data_(std::make_unique<uint8_t[]>(roundDivisionUp(size_, 8))) {}
+        BitVector(uint64_t size) noexcept : size_(size), 
+            data_(std::make_unique<uint8_t[]>(utility::roundDivisionUp(size_, 8))) {}
 
         /**
          * @brief Construct a new BitVector object from an input binary string. Assumes the string
@@ -129,7 +102,7 @@ class BitVector {
          * @return uint32_t Total number of 1s in bitvector
          */
         uint64_t popcount() const noexcept {
-            return std::transform_reduce(data_.get(), data_.get() + roundDivisionUp(size_, 8), 0, 
+            return std::transform_reduce(data_.get(), data_.get() + utility::roundDivisionUp(size_, 8), 0, 
                     std::plus<uint64_t>(), [](auto const& a) -> uint64_t { return std::popcount(a); });
         }
 
@@ -165,7 +138,7 @@ class BitVector {
          */
         uint32_t popcount(uint64_t start, uint32_t len) const {
             checkIndexBounds(start);
-            if constexpr (CHECK_BOUNDS) {
+            if constexpr (utility::CHECK_BOUNDS) {
                 if ((len > 32) || (start+len < start)) {
                     /* last condition checks for overflow */
                     throw std::invalid_argument("Cannot do machine popcount.");
@@ -177,6 +150,14 @@ class BitVector {
             val <<= 32-len;
 
             return std::popcount(val);
+        }
+
+        uint8_t *data() noexcept {
+            return data_.get();
+        }
+
+        uint8_t const* data() const noexcept {
+            return data_.get();
         }
 
         /**
@@ -213,7 +194,7 @@ class BitVector {
          * @param index 
          */
         inline void checkIndexBounds(uint64_t index) const {
-            if constexpr (CHECK_BOUNDS) {
+            if constexpr (utility::CHECK_BOUNDS) {
                 if (index >= this->size_) {
                     throw std::out_of_range("Invalid index " + std::to_string(index) + " for bitvector with size " + 
                                             std::to_string(this->size_) + ".");
@@ -267,10 +248,10 @@ class RankSupport {
          * @param bitvector input BitVector
          */
         RankSupport(BitVector const& bitvector) : bitvector_(bitvector), 
-            superblockSize_(std::pow(std::log2(roundUpToPowerOf2(bitvector.size())), 2) / 2), 
-            blockSize_(std::log2(roundUpToPowerOf2(bitvector.size())) / 2),
-            superblocks_(roundDivisionUp(bitvector.size(), superblockSize_), 0),
-            blocks_(roundDivisionUp(bitvector.size(), blockSize_), 0) {
+            superblockSize_(std::pow(std::log2(utility::roundUpToPowerOf2(bitvector.size())), 2) / 2), 
+            blockSize_(std::log2(utility::roundUpToPowerOf2(bitvector.size())) / 2),
+            superblocks_(utility::roundDivisionUp(bitvector.size(), superblockSize_), 0),
+            blocks_(utility::roundDivisionUp(bitvector.size(), blockSize_), 0) {
             /* construct tables here */
 
             this->buildTables();
@@ -283,7 +264,7 @@ class RankSupport {
          * @param startingIndex index to start building table from
          */
         void buildTables(uint64_t startingIndex = 0) {
-            if constexpr (CHECK_BOUNDS) {
+            if constexpr (utility::CHECK_BOUNDS) {
                 if (startingIndex > this->size()) {
                     throw std::out_of_range("RankSupport::buildTables -- startingIndex " + 
                             std::to_string(startingIndex) + " is out of range for bitvector.");
@@ -332,7 +313,7 @@ class RankSupport {
          * @return uint64_t 
          */
         uint64_t rank1(uint64_t i) const {
-            if constexpr (CHECK_BOUNDS) {
+            if constexpr (utility::CHECK_BOUNDS) {
                 if (i >= this->size()) {
                     throw std::out_of_range("RankSupport::rank1 - " + std::to_string(i) + 
                         "-th bit is out of bounds for bitvector of size " + std::to_string(this->size()) + ".");
@@ -368,30 +349,21 @@ class RankSupport {
 
             /* meta data */
             uint32_t magicTmp;
-            inputStream.read(reinterpret_cast<char*>(&magicTmp), sizeof(magicTmp));
+            serial::deserialize(magicTmp, inputStream);
             if (magicTmp != FILE_MAGIC) {
                 inputStream.close();
                 throw std::domain_error("Invalid file magic for file \"" + fname + "\".");
             }
 
-            uint32_t numSuperblocks, numBlocks, superblockSize, blockSize;
-            inputStream.read(reinterpret_cast<char*>(&superblockSize), sizeof(superblockSize));
-            inputStream.read(reinterpret_cast<char*>(&blockSize), sizeof(blockSize));
-            inputStream.read(reinterpret_cast<char*>(&numSuperblocks), sizeof(numSuperblocks));
-            inputStream.read(reinterpret_cast<char*>(&numBlocks), sizeof(numBlocks));
-
+            uint32_t superblockSize, blockSize;
+            serial::deserialize(superblockSize, inputStream);
+            serial::deserialize(blockSize, inputStream);
             this->superblockSize_ = superblockSize;
-            this->superblocks_.resize(numSuperblocks);
             this->blockSize_ = blockSize;
-            this->blocks_.resize(numBlocks);
 
-            /* read superblocks */
-            const uint32_t totalSuperblockBytes = numSuperblocks * sizeof(decltype(superblocks_)::value_type);
-            inputStream.read(reinterpret_cast<char*>(&superblocks_[0]), totalSuperblockBytes);
-
-            /* read blocks */
-            const uint32_t totalBlockBytes = numBlocks * sizeof(decltype(blocks_)::value_type);
-            inputStream.read(reinterpret_cast<char*>(&blocks_[0]), totalBlockBytes);
+            /* read rest of data */
+            serial::deserialize(superblocks_, inputStream);
+            serial::deserialize(blocks_, inputStream);
 
             /* cleanup */
             inputStream.close();
@@ -411,22 +383,14 @@ class RankSupport {
 
             /* write meta data */
             const uint32_t magicTmp = FILE_MAGIC;
-            const uint32_t numSuperblocks = superblocks_.size();
-            const uint32_t numBlocks = blocks_.size();
-            outputStream.write(reinterpret_cast<char const*>(&FILE_MAGIC), sizeof(magicTmp));
-            outputStream.write(reinterpret_cast<char const*>(&superblockSize_), sizeof(superblockSize_));
-            outputStream.write(reinterpret_cast<char const*>(&blockSize_), sizeof(blockSize_));
-            outputStream.write(reinterpret_cast<char const*>(&numSuperblocks), sizeof(numSuperblocks));
-            outputStream.write(reinterpret_cast<char const*>(&numBlocks), sizeof(numBlocks));
+            serial::serialize(magicTmp, outputStream);
+            serial::serialize(superblockSize_, outputStream);
+            serial::serialize(blockSize_, outputStream);
 
-            /* write superblocks */
-            const uint32_t totalSuperblockBytes = numSuperblocks * sizeof(decltype(superblocks_)::value_type);
-            outputStream.write(reinterpret_cast<char const*>(&superblocks_[0]), totalSuperblockBytes);
+            /* write superblocks and blocks */
+            serial::serialize(superblocks_, outputStream);
+            serial::serialize(blocks_, outputStream);
 
-            /* write blocks */
-            const uint32_t totalBlockBytes = numBlocks * sizeof(decltype(blocks_)::value_type);
-            outputStream.write(reinterpret_cast<char const*>(&blocks_[0]), totalBlockBytes);
-            
             /* cleanup */
             outputStream.close();
         }
@@ -450,6 +414,7 @@ class RankSupport {
         }
 
         friend class SelectSupport;
+        template <typename> friend class ::sparse::SparseArray;
 
     private:
         std::reference_wrapper<const BitVector> bitvector_;
@@ -498,7 +463,7 @@ class SelectSupport {
 
             auto const& rank = rank_.get();
 
-            if constexpr (CHECK_BOUNDS) {
+            if constexpr (utility::CHECK_BOUNDS) {
                 if (i > rank.totalOnes()) {
                     throw std::invalid_argument("SelectSupport::select1 - Cannot select " + std::to_string(i) + 
                         "-th 1 in bitvector with " + std::to_string(rank.totalOnes()) + " 1s.");
