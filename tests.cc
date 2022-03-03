@@ -288,6 +288,9 @@ void testSparseArray() {
         }
         ASSERT_EQUAL(array.numElem(), insertedCounter, "invalid number of elements.");
 
+        /* write out the array */
+        array.save("junk.sparsearray", true);
+
         /* check their values */
         int64_t rankCounter = 0;
         for (auto const& [index, value] : key) {
@@ -303,9 +306,28 @@ void testSparseArray() {
 
             rankCounter += 1;
         }
+
+        /* read array back in */
+        array.load("junk.sparsearray");
+
+        /* REDO tests after reading in file */
+        rankCounter = 0;
+        for (auto const& [index, value] : key) {
+            uint64_t tmp;
+            const auto valueAtIndex = array.getAtIndex(index, tmp);
+            ASSERT_EQUAL(valueAtIndex, true, "invalid element at index return value (after load).");
+            ASSERT_EQUAL(tmp, value, "invalid element at index -- " + std::to_string(tmp) + " vs " + 
+                std::to_string(value) + " (after load).");
+            
+            const auto valueAtRank = array.getAtRank(rankCounter, tmp);
+            ASSERT_EQUAL(valueAtRank, true, "invalid element at rank return value (after load).");
+            ASSERT_EQUAL(tmp, value, "invalid element at rank (after load).");
+
+            rankCounter += 1;
+        }
     }
 
-
+    std::remove("junk.sparsearray");
 
     std::cout << "Success\n";
 }

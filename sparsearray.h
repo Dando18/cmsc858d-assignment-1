@@ -9,22 +9,24 @@
 
 // local includes
 #include "bitvector.h"
+#include "utilities.h"
 
 namespace sparse {
-
-#if defined(NO_BOUNDS_CHECKING)
-constexpr bool CHECK_BOUNDS = false;
-#else
-constexpr bool CHECK_BOUNDS = true;
-#endif
 
 /**
  * @brief SparseArray
  * 
- * @tparam T type to store within array
+ * @tparam T type to store within array. Can be any valid type. Compiling ::load and ::save will give errors if T is 
+ *              not a trivial type or container of trivial types (or container of container of etc...).
+ *              See std::is_trivial<> and utilities.h for definition of concepts.
  */
 template<typename T>
 class SparseArray {
+    /**
+     * @brief All saved SparseArray files should start with these 4 bytes.
+     */
+    constexpr static uint32_t FILE_MAGIC = 0xdeadbeef;
+
     public:
 
         /**
@@ -54,7 +56,7 @@ class SparseArray {
          * @param pos where to insert it
          */
         void append(T const& elem, uint64_t pos) {
-            if constexpr (CHECK_BOUNDS) {
+            if constexpr (utility::CHECK_BOUNDS) {
                 if (bitvector_.at(pos)) {
                     throw std::invalid_argument("SparseArray::append -- position " + std::to_string(pos) + 
                         " already set.");
@@ -128,12 +130,79 @@ class SparseArray {
             return values_.size();
         }
 
-        void save(std::string const& fname) {
+        /**
+         * @brief 
+         * 
+         * @param fname 
+         * @param saveRankTables 
+         */
+        void save(std::string const& fname, bool saveRankTables=false) {
+            std::ofstream outputStream(fname, std::ios::out | std::ios::binary);
+            if (!outputStream) {
+                throw std::ios_base::failure("SparseArray::save -- Could not open file \"" + fname + "\" to write.");
+            }
 
+            /* meta data */
+            const uint32_t tmpMagic = SparseArray::FILE_MAGIC;
+            const uint32_t tmpDataSize = sizeof(T);
+            const uint32_t tmpSize = this->size();
+            serial::serialize(tmpMagic, outputStream);
+            serial::serialize(tmpDataSize, outputStream);
+            serial::serialize(tmpSize, outputStream);
+
+            /* write bits in bitvector */
+            const uint32_t numBitvectorBytes = utility::roundDivisionUp(tmpSize, 8);
+            outputStream.write(reinterpret_cast<char const*>(bitvector_.data()), numBitvectorBytes);
+
+            /* write values */
+            serial::serialize(values_, outputStream);
+
+            /* save rank information */
+            if (saveRankTables) {
+                serial::serialize(rank_.superblocks_, outputStream);
+                serial::serialize(rank_.blocks_, outputStream);
+            }
+
+            outputStream.close();
         }
 
         void load(std::string const& fname) {
+            std::ifstream inputStream(fname, std::ios::in | std::ios::binary);
+            if (!inputStream) {
+                throw std::ios_base::failure("SparseArray::load -- Could not open file \"" + fname + "\" to read.");
+            }
 
+            /* metadata */
+            uint32_t tmpMagic, tmpDataSize, tmpSize;
+            serial::deserialize(tmpMagic, inputStream);
+            if (tmpMagic != SparseArray::FILE_MAGIC) {
+                inputStream.close();
+                throw std::ios_base::failure("SparseArray::load -- Invalid file format reading \"" + fname + "\".");
+            }
+            serial::deserialize(tmpDataSize, inputStream);
+            if (tmpDataSize != sizeof(T)) {
+                inputStream.close();
+                throw std::ios_base::failure("SparseArray::load -- File \"" + fname + "\" saves different data type.");
+            }
+            serial::deserialize(tmpSize, inputStream);
+
+            /* allocate data and read in bitvector */
+            this->create(tmpSize);
+            const uint32_t numBitvectorBytes = utility::roundDivisionUp(bitvector_.size(), 8);
+            inputStream.read(reinterpret_cast<char*>(bitvector_.data()), numBitvectorBytes);
+
+            /* read in array */
+            serial::deserialize(values_, inputStream);
+
+            /* read in or rebuild rank tables */
+            if (inputStream.peek() == EOF) {
+                rank_.buildTables();
+            } else {
+                serial::deserialize(rank_.superblocks_, inputStream);
+                serial::deserialize(rank_.blocks_, inputStream);
+            }
+
+            inputStream.close();
         }
 
         /**
