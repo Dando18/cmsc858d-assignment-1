@@ -131,10 +131,13 @@ class SparseArray {
         }
 
         /**
-         * @brief 
+         * @brief Save SparseArray to file. 
+         * @see load
+         * @throws std::ios_base::failure If there is an error opening the file.
          * 
-         * @param fname 
-         * @param saveRankTables 
+         * @param fname Filename of file to write to.
+         * @param saveRankTables If true, then the ranktable data will be saved in the file. If false, then it is left
+         *        out and `load` will regenerate it.
          */
         void save(std::string const& fname, bool saveRankTables=false) {
             std::ofstream outputStream(fname, std::ios::out | std::ios::binary);
@@ -166,6 +169,13 @@ class SparseArray {
             outputStream.close();
         }
 
+        /**
+         * @brief Loads a SparseVector from a file. Expects the format used in SparseVector::save.
+         * @see save
+         * @throws std::ios_base::failure if file not found, invalid, or some other file error.
+         * 
+         * @param fname Name of file to load.
+         */
         void load(std::string const& fname) {
             std::ifstream inputStream(fname, std::ios::in | std::ios::binary);
             if (!inputStream) {
