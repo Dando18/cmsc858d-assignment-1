@@ -83,7 +83,7 @@ concept Container = requires(T a, const T b) {
  */
 template <typename T>
 concept Resizable = requires(T a) {
-    { a.resize(1ul) } -> std::same_as<void>;
+    { a.resize(1u) } -> std::same_as<void>;
 };
 
 /**
