@@ -69,6 +69,29 @@ class SparseArray {
         }
 
         /**
+         * @brief Construct T(Args ...args) at the index in the sparse array. Only handles appending.
+         * 
+         * @tparam Args Constructor arguments for data type T. Forwarded to constructor.
+         * @param pos Index to insert at.
+         * @param args Constructor arguments.
+         * @return T& Returns a reference to the constructed value.
+         */
+        template<class... Args>
+        T& emplace(uint64_t pos, Args ...args) {
+            if constexpr (utility::CHECK_BOUNDS) {
+                if (bitvector_.at(pos)) {
+                    throw std::invalid_argument("SparseArray::emplace -- position " + std::to_string(pos) + 
+                        " already set.");
+                }
+            }
+
+            auto &ref = values_.emplace_back(std::forward<Args>(args)...);
+            bitvector_.set(pos, 1);
+            rank_.buildTables(pos);
+            return ref;
+        }
+
+        /**
          * @brief return the rank-th element of the sparse array.
          * 
          * @param rank what rank element to retrieve
