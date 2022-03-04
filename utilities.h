@@ -143,7 +143,7 @@ void deserialize(DataType &data, std::ifstream &inputStream) {
             if constexpr(Resizable<DataType>) {
                 data.resize(size);
             } else {
-                throw std::runtime_error("Size mismatch during deserialization. Cannot recover.");
+                throw std::runtime_error("Container size mismatch during deserialization. Cannot recover.");
             }
         }
 
