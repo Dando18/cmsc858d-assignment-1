@@ -52,7 +52,7 @@ int main(int argc, char** argv) {
         testSelect(bvSize, numSelectCalls);
     } else if (action == "sparsearray" || action == "sparse-array") {
         if (argc != 5) {
-            std::cerr << "usage: " << argv[0] << "select bitvectorSize sparsity numFuncCalls\n";
+            std::cerr << "usage: " << argv[0] << "sparsearray bitvectorSize sparsity numFuncCalls\n";
             return 1;
         }
 
@@ -84,7 +84,7 @@ void testRank(uint64_t bvSize, uint64_t numRankCalls) {
     for (uint32_t i = 0; i < NUM_TEST_ITER; i += 1) {
 
         const bitvector::BitVector bv = bitvector::getRandomBitVector(bvSize);
-        bitvector::RankSupport rank(bv);
+        const bitvector::RankSupport rank(bv);
 
         /* record overhead */
         if (i == 0) {
@@ -98,7 +98,9 @@ void testRank(uint64_t bvSize, uint64_t numRankCalls) {
         const auto begin = std::chrono::high_resolution_clock::now();
         for (uint64_t j = 0; j < numRankCalls; j += 1) {
             /*  I've experimentally confirmed on clang and gcc with -S flag that this does not get optimized away.
-                Probably since RankSupport accesses bitvector's data, which may be aliased...? */
+                Probably since RankSupport accesses bitvector's data, which may be aliased...?
+                If it does appear to be getting optimized, then we can replace indices[j] with a volatile temporary 
+                variable. */
             rank(indices[j]);
         } 
         const auto end = std::chrono::high_resolution_clock::now();
@@ -126,7 +128,7 @@ void testSelect(uint64_t bvSize, uint64_t numSelectCalls) {
 
         const bitvector::BitVector bv(bitString);
         const bitvector::RankSupport rank(bv);
-        bitvector::SelectSupport select(rank);
+        const bitvector::SelectSupport select(rank);
         std::uniform_int_distribution<uint64_t> dist{1, rank.totalOnes()};
 
         /* record overhead */
