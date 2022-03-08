@@ -113,7 +113,7 @@ void testBitVector() {
         /* check values */
         for (uint32_t i = 0; i < elements.size(); i += 1) {
             ASSERT_EQUAL(pv.at(i), elements.at(i), "Packed integer invalid on " + std::to_string(bpe) + 
-                                                " bits per element");
+                                                " bits per element.");
         }
     }
 
@@ -127,7 +127,7 @@ void testRank() {
     /* small example -- block size 2, superblock size 8 */
     const std::string EXAMPLE_STR = "1001011101001010";
     const BitVector bv(EXAMPLE_STR);
-    RankSupport rank(bv);
+    const RankSupport rank(bv);
 
     for (size_t i = 0; i < bv.size(); i += 1) {
         const auto val = rank(i);
@@ -136,12 +136,12 @@ void testRank() {
 
         ASSERT_EQUAL(val, expected, "Incorrect rank calculated.");
     }
-    //ASSERT_EQUAL(rank.overhead(), 320, "Incorrect overhead.");
+    ASSERT_EQUAL(rank.overhead(), 160u, "Incorrect overhead.");
 
     /* even smaller example */
     const std::string SMALL_STR = "0100010001";
     const BitVector bvSmall(SMALL_STR);
-    RankSupport rankSmall(bvSmall);
+    const RankSupport rankSmall(bvSmall);
     for (size_t i = 0; i < bvSmall.size(); i += 1) {
         const auto val = rankSmall(i);
         const auto prefix = SMALL_STR.substr(0, i+1);
@@ -154,16 +154,16 @@ void testRank() {
     const std::vector<uint32_t> LENGTHS {10, 1024, 4096, 1000, 1001, 10057};
     for (auto const& len : LENGTHS) {
         const std::string BIT_STR = getRandomBinaryString(len);
-        BitVector bvLong(BIT_STR);
+        const BitVector bvLong(BIT_STR);
         RankSupport rankLong(bvLong);
 
         /* save to file */
         rankLong.save("junk.ranksupport");
 
         for (size_t i = 0; i < bvLong.size(); i += 1) {
-            auto val = rankLong(i);
-            auto prefix = BIT_STR.substr(0, i+1);
-            uint32_t expected = std::count_if(std::begin(prefix), std::end(prefix), [](auto c) { return c == '1'; });
+            const auto val = rankLong(i);
+            const auto prefix = BIT_STR.substr(0, i+1);
+            const uint32_t expected = std::count_if(std::begin(prefix), std::end(prefix), [](auto c){return c == '1';});
 
             ASSERT_EQUAL(val, expected, "Incorrect rank calculated (length=" + std::to_string(len) + 
                                         ", index=" + std::to_string(i) + ").");
@@ -172,9 +172,9 @@ void testRank() {
         /* read from file and do again */
         rankLong.load("junk.ranksupport");
         for (size_t i = 0; i < bvLong.size(); i += 1) {
-            auto val = rankLong(i);
-            auto prefix = BIT_STR.substr(0, i+1);
-            uint32_t expected = std::count_if(std::begin(prefix), std::end(prefix), [](auto c) { return c == '1'; });
+            const auto val = rankLong(i);
+            const auto prefix = BIT_STR.substr(0, i+1);
+            const uint32_t expected = std::count_if(std::begin(prefix), std::end(prefix), [](auto c){return c == '1';});
 
             ASSERT_EQUAL(val, expected, "Incorrect rank calculated (length=" + std::to_string(len) + 
                                         ", index=" + std::to_string(i) + ") after file load.");
@@ -187,7 +187,16 @@ void testRank() {
     std::cout << "Success\n";
 }
 
- uint64_t naiveSelect(std::string const& s, char val, uint64_t count) noexcept {
+
+/**
+ * @brief Utility to check correctness of select.
+ * 
+ * @param s Input string value.
+ * @param val Token to search for.
+ * @param count Which occurrence of 'val' to search for.
+ * @return uint64_t the index of the 'count'-th occurrence of 'val'
+ */
+uint64_t naiveSelect(std::string const& s, char val, uint64_t count) noexcept {
     uint64_t occurrences = 0;
 
     size_t currentPosition = s.find(val, 0);
@@ -216,9 +225,9 @@ void testSelect() {
     /* small example -- block size 2, superblock size 8 */
     const std::string EXAMPLE_STR = "1001011101001010";
     const uint64_t EXAMPLE_NUM_ONES = std::count(std::begin(EXAMPLE_STR), std::end(EXAMPLE_STR), '1');
-    BitVector bv(EXAMPLE_STR);
-    RankSupport rank(bv);
-    SelectSupport select(rank);
+    const BitVector bv(EXAMPLE_STR);
+    const RankSupport rank(bv);
+    const SelectSupport select(rank);
 
     for (size_t i = 1; i <= EXAMPLE_NUM_ONES; i += 1) {
         const auto val = select(i);
@@ -232,9 +241,9 @@ void testSelect() {
     for (auto const& len : LENGTHS) {
         const std::string BIT_STR = getRandomBinaryString(len);
         const uint64_t NUM_ONES = std::count(std::begin(BIT_STR), std::end(BIT_STR), '1');
-        BitVector bvLong(BIT_STR);
-        RankSupport rankLong(bvLong);
-        SelectSupport selectLong(rankLong);
+        const BitVector bvLong(BIT_STR);
+        const RankSupport rankLong(bvLong);
+        const SelectSupport selectLong(rankLong);
 
         for (size_t i = 1; i <= NUM_ONES; i += 1) {
             const auto val = selectLong(i);
