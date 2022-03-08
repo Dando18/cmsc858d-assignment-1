@@ -6,6 +6,7 @@
 
 // stl includes
 #include <bit>
+#include <bitset>
 #include <cmath>
 #include <cstdint>
 #include <exception>
@@ -108,7 +109,6 @@ class BitVector {
 
         /**
          * @brief Popcount of the byte that `index` lies in.
-         * 
          * @throws std::out_of_range If index is out of range.
          * 
          * @param index index into bitvector
@@ -183,6 +183,36 @@ class BitVector {
             return stream;
         }
 
+        /**
+         * @brief Serialize bitvector into output stream. Pads data to nearest byte.
+         * 
+         * @param out destination of data
+         */
+        void serialize(std::ofstream& out) const {
+            serial::serialize(size_, out);
+            const uint32_t numBytes = utility::roundDivisionUp(size_, 8);
+            out.write(reinterpret_cast<char const*>(data_.get()), numBytes);
+        }
+
+        /**
+         * @brief Deserialize data into array. Reallocates if incoming size is different.
+         * Current data will be overwritten.
+         * 
+         * @param in source of data
+         */
+        void deserialize(std::ifstream& in) {
+            uint64_t tmpSize;
+            serial::deserialize(tmpSize, in);
+
+            if (tmpSize != size_) {
+                size_ = tmpSize;
+                data_ = std::make_unique<uint8_t[]>(size_);
+            }
+
+            const uint32_t numBytes = utility::roundDivisionUp(size_, 8);
+            in.read(reinterpret_cast<char*>(data_.get()), numBytes);
+        }
+
     private:
         uint64_t size_;
         std::unique_ptr<uint8_t[]> data_;
@@ -233,6 +263,115 @@ BitVector getRandomBitVector(size_t bits) noexcept {
 
 
 /**
+ * @brief PackedVector. Lightweight wrapper around BitVector to index packed integers in a bit array.
+ */
+class PackedVector {
+    public:
+        PackedVector(uint64_t length, uint32_t bitsPerElement) : size_(length), bitsPerElement_(bitsPerElement),
+            bitvector_(length*bitsPerElement + 64) {
+            if (bitsPerElement > 56) {
+                /*  []/at return uint64_t and the data is copied into the return value at byte alignment, so
+                    each element has to be less than 64-8=56 bits. */
+                throw std::invalid_argument("PackedVector -- Bits/Element larger than 56 not yet supported.");
+            } 
+        }
+
+        /**
+         * @return uint64_t the number of elements
+         */
+        uint64_t size() const noexcept {
+            return size_;
+        }
+
+        /**
+         * @brief Retrieves the idx-th element of the array. No bounds checking.
+         * 
+         * @param idx index to retrieve
+         * @return uint64_t the idx-th value
+         */
+        uint64_t operator[](uint64_t idx) const noexcept {
+            const uint64_t start = idx * bitsPerElement_;
+            const uint64_t val = *reinterpret_cast<uint64_t const*>(&bitvector_.data()[start >> 3]);
+            return utility::getBitRange(val, start & 7, bitsPerElement_);
+        }
+
+        /**
+         * @brief Gets the idx-th value with bounds checking.
+         * @throws std::out_of_range when idx is out of range
+         * 
+         * @param idx index to retrieve
+         * @return uint64_t the idx-th value
+         */
+        uint64_t at(uint64_t idx) const {
+            checkBounds(idx);
+            return this->operator[](idx);
+        }
+
+        /**
+         * @brief Sets the idx-th element to value. Does bounds checking.
+         * @throws std::out_of_range when idx is out of range.
+         * 
+         * @param idx index to set
+         * @param value value to put in index
+         */
+        void set(uint64_t idx, uint64_t value) {
+            checkBounds(idx);
+
+            value &= (1ull << (bitsPerElement_+1)) - 1;
+            const uint64_t start = idx * bitsPerElement_;
+
+            // TODO -- this is dangerous because writing 8 bytes might write past end of data
+            // right now it's ok because PackedVector is padded by 8 bytes, but there might be a better solution.
+            uint64_t *bits = reinterpret_cast<uint64_t*>(&bitvector_.data()[start >> 3]);
+            *bits = utility::setBitRange(*bits, start & 7, bitsPerElement_, value);
+        }
+
+        /**
+         * @return uint64_t The number of bits this data structure uses.
+         */
+        uint64_t overhead() const noexcept {
+            return bitvector_.size();
+        }
+
+        /**
+         * @brief Serialize data into output stream using serial::serialize
+         * 
+         * @param out destination of data
+         */
+        void serialize(std::ofstream& out) const {
+            serial::serialize(size_, out);
+            serial::serialize(bitsPerElement_, out);
+            serial::serialize(bitvector_, out);
+        }
+
+        /**
+         * @brief Deserialize from inputstream using serial::deserialize. Will reallocate bitvector.
+         * 
+         * @param in source of data
+         */
+        void deserialize(std::ifstream& in) {
+            serial::deserialize(size_, in);
+            serial::deserialize(bitsPerElement_, in);
+            serial::deserialize(bitvector_, in);
+        }
+    
+    private:
+        uint64_t size_;
+        uint32_t bitsPerElement_;
+        BitVector bitvector_;
+
+        inline void checkBounds(uint64_t idx) const {
+            if constexpr (utility::CHECK_BOUNDS) {
+                if (idx >= size_) {
+                    throw std::out_of_range("Invalid index " + std::to_string(idx) + " for PackedVector of size " + 
+                                            std::to_string(size_) + ".");
+                }
+            }
+        }
+};
+
+
+/**
  * @brief RankSupport class. Implements ability to compute rank of bitvector in constant time.
  */
 class RankSupport {
@@ -249,9 +388,11 @@ class RankSupport {
          */
         RankSupport(BitVector const& bitvector) : bitvector_(bitvector), 
             superblockSize_(std::pow(std::log2(utility::roundUpToPowerOf2(bitvector.size())), 2) / 2), 
+            superblockWordSize_(std::ceil(std::log2(bitvector.size()))),
             blockSize_(std::log2(utility::roundUpToPowerOf2(bitvector.size())) / 2),
-            superblocks_(utility::roundDivisionUp(bitvector.size(), superblockSize_), 0),
-            blocks_(utility::roundDivisionUp(bitvector.size(), blockSize_), 0) {
+            blockWordSize_(std::ceil(std::log2(superblockSize_))),
+            superblocks_(utility::roundDivisionUp(bitvector.size(), superblockSize_), superblockWordSize_),
+            blocks_(utility::roundDivisionUp(bitvector.size(), blockSize_), blockWordSize_) {
             /* construct tables here */
 
             this->buildTables();
@@ -277,13 +418,14 @@ class RankSupport {
 
             uint32_t superblockSum = superblocks_.at(startingIndex / superblockSize_);
             uint32_t blockSum = blocks_.at(startingIndex / blockSize_);
+
             for (size_t i = startingIndex; i < bv.size(); i += 1) {
                 if (i % superblockSize_ == 0) {
-                    superblocks_.at(i/superblockSize_) = superblockSum;
+                    superblocks_.set(i / superblockSize_, superblockSum);
                     blockSum = 0;
                 }
                 if (i % blockSize_ == 0) {
-                    blocks_.at(i/blockSize_) = blockSum;
+                    blocks_.set(i / blockSize_, blockSum);
                 }
                 blockSum += bv[i];
                 superblockSum += bv[i];
@@ -331,8 +473,7 @@ class RankSupport {
          * @return uint64_t bits overhead.
          */
         uint64_t overhead() const noexcept {
-            return  8*sizeof(decltype(superblocks_)::value_type)*superblocks_.size() + 
-                    8*sizeof(decltype(blocks_)::value_type)*blocks_.size();
+            return superblocks_.overhead() + blocks_.overhead();
         }
 
         /**
@@ -418,8 +559,8 @@ class RankSupport {
 
     private:
         std::reference_wrapper<const BitVector> bitvector_;
-        uint32_t superblockSize_, blockSize_;
-        std::vector<uint32_t> superblocks_, blocks_;
+        uint32_t superblockSize_, superblockWordSize_, blockSize_, blockWordSize_;
+        PackedVector superblocks_, blocks_;
         uint64_t totalOnes_;
 };
 
@@ -469,11 +610,13 @@ class SelectSupport {
                         "-th 1 in bitvector with " + std::to_string(rank.totalOnes()) + " 1s.");
                 }
                 if (i == 0) {
-                    throw std::invalid_argument("SelectSupport::select1 - 0-th 1 is ill-defined. Use 1-indexing.");
+                    throw std::invalid_argument("SelectSupport::select1 - 0-th 1 is not defined. Use 1-indexing.");
                 }
             }
 
             auto const& bv = rank.bitvector_.get();
+
+            /* binary search */
             uint32_t lower = 0, upper = rank.size();
             while (lower <= upper) {
                 const uint32_t mid = (lower + upper) / 2;
@@ -488,6 +631,7 @@ class SelectSupport {
                 }
             }
 
+            /* i < totalOnes but we couldn't find the i-th 1. Something went wrong. */
             throw std::runtime_error("Unexpected error finding " + std::to_string(i) + "-th 1.");
         }
 
@@ -507,7 +651,7 @@ class SelectSupport {
          * @param fname input filename
          */
         void load(std::string const& fname) {
-
+            (void)(fname);  /* suppress -Wunused-parameter */
         }
 
         /**
@@ -517,7 +661,7 @@ class SelectSupport {
          * @param fname output filename
          */
         void save(std::string const& fname) const {
-
+            (void)(fname);  /* suppress -Wunused-parameter */
         }
     
     private:

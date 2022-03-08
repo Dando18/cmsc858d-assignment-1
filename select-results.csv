@@ -1,6 +1,0 @@
-problem,bitvector_size,num_select_calls,num_iter,overhead,avg_duration
-select,100,100000,50,0,0.00834496
-select,1000,100000,50,0,0.0132003
-select,10000,100000,50,0,0.0179873
-select,100000,100000,50,0,0.0226573
-select,1000000,100000,50,0,0.0280618

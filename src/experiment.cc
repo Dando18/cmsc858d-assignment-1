@@ -1,6 +1,6 @@
-/* For performance testing.
-author: Daniel Nichols
-date: February 2022
+/*  For performance testing.
+    author: Daniel Nichols
+    date: February 2022
 */
 // stl includes
 #include <algorithm>
@@ -167,7 +167,7 @@ void testSparseArray(uint64_t size, float sparsity, uint64_t funcCalls) {
 
     double avgAppendDuration = 0.0, avgGetAtIndexDuration = 0.0, avgGetAtRankDuration = 0.0;
     uint64_t sparseOverhead;
-    const uint64_t denseOverhead = 8*sizeof(uint64_t)*numToInsert;
+    const uint64_t denseOverhead = 8*sizeof(uint64_t)*size;
 
     for (uint32_t i = 0; i < NUM_TEST_ITER; i += 1) {
 

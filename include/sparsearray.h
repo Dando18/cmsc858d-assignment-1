@@ -1,4 +1,4 @@
-/*  Implementations SparseArray
+/*  Implementation of SparseArray
     author: Daniel Nichols
     date: February 2022
 */
@@ -17,8 +17,8 @@ namespace sparse {
  * @brief SparseArray
  * 
  * @tparam T type to store within array. Can be any valid type. Compiling ::load and ::save will give errors if T is 
- *              not a trivial type or container of trivial types (or container of container of etc...).
- *              See std::is_trivial<> and utilities.h for definition of concepts.
+ *         not a trivial type or container of trivial types (or container of container of etc...).
+ *         See std::is_trivial<> and utilities.h for definition of concepts.
  */
 template<typename T>
 class SparseArray {
@@ -177,8 +177,7 @@ class SparseArray {
             serial::serialize(tmpSize, outputStream);
 
             /* write bits in bitvector */
-            const uint32_t numBitvectorBytes = utility::roundDivisionUp(tmpSize, 8);
-            outputStream.write(reinterpret_cast<char const*>(bitvector_.data()), numBitvectorBytes);
+            serial::serialize(bitvector_, outputStream);
 
             /* write values */
             serial::serialize(values_, outputStream);
@@ -221,8 +220,7 @@ class SparseArray {
 
             /* allocate data and read in bitvector */
             this->create(tmpSize);
-            const uint32_t numBitvectorBytes = utility::roundDivisionUp(bitvector_.size(), 8);
-            inputStream.read(reinterpret_cast<char*>(bitvector_.data()), numBitvectorBytes);
+            serial::deserialize(bitvector_, inputStream);
 
             /* read in array */
             serial::deserialize(values_, inputStream);
