@@ -26,11 +26,14 @@ TARGETS = $(BINDIR)/experiment $(BINDIR)/tests
 
 all: $(TARGETS)
 
-$(BINDIR)/experiment: $(SRCDIR)/experiment.cc $(INCDIR)/bitvector.h $(INCDIR)/sparsearray.h $(INCDIR)/utilities.h
+$(BINDIR)/experiment: $(SRCDIR)/experiment.cc $(INCDIR)/bitvector.h $(INCDIR)/sparsearray.h $(INCDIR)/utilities.h $(BINDIR)
 	$(CC) $(FLAGS) -o $@ $<
 
-$(BINDIR)/tests: $(SRCDIR)/tests.cc $(INCDIR)/bitvector.h $(INCDIR)/sparsearray.h $(INCDIR)/utilities.h
+$(BINDIR)/tests: $(SRCDIR)/tests.cc $(INCDIR)/bitvector.h $(INCDIR)/sparsearray.h $(INCDIR)/utilities.h $(BINDIR)
 	$(CC) $(TESTFLAGS) -o $@ $< 
+
+$(BINDIR):
+	mkdir -p $(BINDIR)
 
 clean:
 	rm -f $(TARGETS)
