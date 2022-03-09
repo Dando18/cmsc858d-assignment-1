@@ -1,4 +1,4 @@
-/*  Implementations of BitVector, RankSupport, SelectSupport.
+/*  Implementations of BitVector and RankSupport.
     author: Daniel Nichols
     date: February 2022
 */
@@ -19,9 +19,6 @@
 
 // local includes
 #include "utilities.h"
-
-/* forward declarations */
-namespace sparse { template<typename T> class SparseArray; }    /* so RankSupport and SelectSupport can friend it */
 
 namespace bitvector {
 
@@ -553,118 +550,11 @@ class RankSupport {
             return totalOnes_;
         }
 
-        friend class SelectSupport;
-        template <typename> friend class ::sparse::SparseArray;
-
     private:
         std::reference_wrapper<const BitVector> bitvector_;
         uint32_t superblockSize_, superblockWordSize_, blockSize_, blockWordSize_;
         PackedVector superblocks_, blocks_;
         uint64_t totalOnes_;
-};
-
-
-/**
- * @brief SelectSupport class. Implements routines for doing selection on a bitvector.
- */
-class SelectSupport {
-    public:
-        /**
-         * @brief Construct a new SelectSupport object. 
-         * 
-         * @param rank RankSupport object
-         */
-        SelectSupport(RankSupport const& rank) noexcept : rank_(rank) {}
-
-        /**
-         * @brief The location of the i-th 1 in the bitvector. 
-         * @see select1
-         * 
-         * @throws std::invalid_argument If i is greater than the total number of ones.
-         * @throws std::domain_error If no answer is found (something is really wrong here).
-         * 
-         * @param i number of ones
-         * @return uint64_t index of i-th 1
-         */
-        uint64_t operator()(uint64_t i) const {
-            return select1(i);
-        }
-
-        /**
-         * @brief The location of the i-th 1 in the bitvector. 
-         * 
-         * @throws std::invalid_argument If i is greater than the total number of ones or is zero.
-         * @throws std::runtime_error If no answer is found (something is really wrong here).
-         * 
-         * @param i number of ones
-         * @return uint64_t index of i-th 1
-         */
-        uint64_t select1(uint64_t i) const {
-
-            auto const& rank = rank_.get();
-
-            if constexpr (utility::CHECK_BOUNDS) {
-                if (i > rank.totalOnes()) {
-                    throw std::invalid_argument("SelectSupport::select1 - Cannot select " + std::to_string(i) + 
-                        "-th 1 in bitvector with " + std::to_string(rank.totalOnes()) + " 1s.");
-                }
-                if (i == 0) {
-                    throw std::invalid_argument("SelectSupport::select1 - 0-th 1 is not defined. Use 1-indexing.");
-                }
-            }
-
-            auto const& bv = rank.bitvector_.get();
-
-            /* binary search */
-            uint32_t lower = 0, upper = rank.size();
-            while (lower <= upper) {
-                const uint32_t mid = (lower + upper) / 2;
-                const auto valueAtMid = rank(mid);
-
-                if (valueAtMid < i) {
-                    lower = mid + 1;
-                } else if ((valueAtMid > i) || (bv.at(mid) != 1)) {
-                    upper = mid - 1;
-                } else {
-                    return mid;
-                }
-            }
-
-            /* i < totalOnes but we couldn't find the i-th 1. Something went wrong. */
-            throw std::runtime_error("Unexpected error finding " + std::to_string(i) + "-th 1.");
-        }
-
-        /**
-         * @brief Returns the overhead in bits of RankSelect.
-         * 
-         * @return uint64_t number of bits
-         */
-        uint64_t overhead() const noexcept {
-            return 0;
-        }
-
-        /**
-         * @brief Loads SelectSupport data to `fname`. Must be in format from `save`.
-         * @see save
-         * 
-         * @param fname input filename
-         */
-        void load(std::string const& fname) {
-            (void)(fname);  /* suppress -Wunused-parameter */
-        }
-
-        /**
-         * @brief Saves SelectSupport data to `fname`.
-         * @see load
-         * 
-         * @param fname output filename
-         */
-        void save(std::string const& fname) const {
-            (void)(fname);  /* suppress -Wunused-parameter */
-        }
-    
-    private:
-        std::reference_wrapper<const RankSupport> rank_;
 };
 
 }   // end namespace bitvector

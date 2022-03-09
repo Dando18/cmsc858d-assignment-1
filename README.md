@@ -44,3 +44,14 @@ It can be used to reproduce the reported results.
 
 `figs/` is created by `generate-plots.py` and stores the figures for the experiment results.
 
+
+
+### For the task breakdowns:
+
+`task-1/` has the code for bitvector and RankSupport.
+
+`task-2/` has the code for SelectSupport.
+
+`task-3/` has the code for SparseArray.
+
+`include/` and `src/` contain all the code together.

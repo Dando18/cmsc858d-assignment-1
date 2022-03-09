@@ -20,9 +20,6 @@
 // local includes
 #include "utilities.h"
 
-/* forward declarations */
-namespace sparse { template<typename T> class SparseArray; }    /* so RankSupport and SelectSupport can friend it */
-
 namespace bitvector {
 
 /**
@@ -554,7 +551,6 @@ class RankSupport {
         }
 
         friend class SelectSupport;
-        template <typename> friend class ::sparse::SparseArray;
 
     private:
         std::reference_wrapper<const BitVector> bitvector_;
