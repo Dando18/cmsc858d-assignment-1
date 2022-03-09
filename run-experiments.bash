@@ -1,4 +1,7 @@
 #!/bin/bash
+### This script can be used to reproduce the reported results. It will create 3 csv files and several plot files.
+### author: Daniel Nichols
+### date: February 2022
 
 # config
 EXEC="./bin/experiment"
@@ -29,6 +32,7 @@ fi
 # ===================
 # === EXPERIMENTS ===
 # ===================
+mkdir -p ${DATA_DIR}
 
 # -- Rank --
 echo "Running Rank experiment..."
