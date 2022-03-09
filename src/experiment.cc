@@ -100,7 +100,7 @@ void testRank(uint64_t bvSize, uint64_t numRankCalls) {
             /*  I've experimentally confirmed on clang and gcc with -S flag that this does not get optimized away.
                 Probably since RankSupport accesses bitvector's data, which may be aliased...?
                 If it does appear to be getting optimized, then we can replace indices[j] with a volatile temporary 
-                variable. */
+                variable `const auto volatile idx = indices[j];`. */
             rank(indices[j]);
         } 
         const auto end = std::chrono::high_resolution_clock::now();
@@ -175,9 +175,6 @@ void testSparseArray(uint64_t size, float sparsity, uint64_t funcCalls) {
 
         sparse::SparseArray<uint64_t> array;
         array.create(size);
-        if (i == 0) {
-            sparseOverhead = array.overhead();
-        }
 
         /* append */
         std::map<uint64_t, uint64_t> randVals;
@@ -189,7 +186,11 @@ void testSparseArray(uint64_t size, float sparsity, uint64_t funcCalls) {
         }
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration<double>(end-begin).count();
-        avgAppendDuration += duration;
+        avgAppendDuration += duration / static_cast<double>(numToInsert);
+
+        if (i == 0) {
+            sparseOverhead = array.overhead();
+        }
 
         /* get at index */
         uint64_t tmpVal;
