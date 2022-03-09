@@ -1,4 +1,5 @@
-''' Plot results from the experiments in this directory.
+''' Plot results from the experiments.
+    usage: python generate-plots.py <rank_csv> <select_csv> <sparsearray_csv>
     author: Daniel Nichols
     date: February 2022
 '''
@@ -67,24 +68,29 @@ def make_sparsearray_plots(df):
                     avg_getatindex_duration,avg_getatrank_duration
     '''
     
-    #plt.clf()
+    # Plots (1)-(3)
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(12,5))
     
-    df.reset_index().pivot('array_size', 'sparsity', 'avg_append_duration').plot(ax=ax1, title='Append', xlabel='', ylabel='Seconds', logx=True)
+    df.reset_index().pivot('array_size', 'sparsity', 'avg_append_duration').plot(ax=ax1, title='Append', xlabel='', 
+        ylabel='Seconds', logx=True)
 
-    df.pivot('array_size', 'sparsity', 'avg_getatindex_duration').plot(ax=ax2, title='GetAtIndex', xlabel='', legend=False, logx=True)
+    df.pivot('array_size', 'sparsity', 'avg_getatindex_duration').plot(ax=ax2, title='GetAtIndex', xlabel='', 
+        legend=False, logx=True)
 
-    df.pivot('array_size', 'sparsity', 'avg_getatrank_duration').plot(ax=ax3, title='GetAtRank', xlabel='', legend=False, logx=True)
+    df.pivot('array_size', 'sparsity', 'avg_getatrank_duration').plot(ax=ax3, title='GetAtRank', xlabel='', 
+        legend=False, logx=True)
 
     fig.text(0.5, 0.01, 'Array Size (N)', ha='center')
     fig.suptitle('Time in Functions vs Array Size')
     fig.tight_layout()
     fig.savefig(path_join('figs', 'sparsearray-experiment-plots.png'))
 
-
+    # Plot (4)
     fig, ax = plt.subplots(1, figsize=(8,5))
-    df.pivot('array_size', 'sparsity', 'sparse_overhead').plot(ax=ax, title='Sparse Memory Savings', xlabel='Array Size (N)', logx=True)
-    ax.plot(df[df['sparsity'] == 0.1]['array_size'], df[df['sparsity'] == 0.1]['dense_overhead'], color='black', linestyle='dashed', label='1.0')
+    df.pivot('array_size', 'sparsity', 'sparse_overhead').plot(ax=ax, title='Sparse Memory Savings', 
+        xlabel='Array Size (N)', logx=True)
+    ax.plot(df[df['sparsity'] == 0.1]['array_size'], df[df['sparsity'] == 0.1]['dense_overhead'], color='black', 
+        linestyle='dashed', label='1.0')
     ax.legend()
     ax.set_ylabel('# Bits')
     fig.tight_layout()
@@ -108,7 +114,6 @@ def main():
     make_rank_plots(rank_df)
     make_select_plots(select_df)
     make_sparsearray_plots(sparsearray_df)
-
 
 
 if __name__ == '__main__':
