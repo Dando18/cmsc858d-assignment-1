@@ -1,6 +1,8 @@
 # Assignment 1
 https://rob-p.github.io/CMSC858D_S22/assignments/01_assignment_01
 
+Repo URL: https://github.com/Dando18/cmsc858d-assignment-1
+
 ## Building and Running
 
 `make` will build the code. 
