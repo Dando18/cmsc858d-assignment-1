@@ -595,7 +595,7 @@ class SelectSupport {
          * @brief The location of the i-th 1 in the bitvector. 
          * 
          * @throws std::invalid_argument If i is greater than the total number of ones or is zero.
-         * @throws std::domain_error If no answer is found (something is really wrong here).
+         * @throws std::runtime_error If no answer is found (something is really wrong here).
          * 
          * @param i number of ones
          * @return uint64_t index of i-th 1
